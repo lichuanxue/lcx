@@ -1,1 +1,198 @@
-https://github.com/lichuanxue/test.git
+//摄像头 guide-combine
+message original_camera_t
+{
+	required	camera_type_t	camera_type = 1;		//摄像头类型
+	optional	int32			speed = 2;							//限速摄像头限速值（公里/小时）
+	required	Point			camera_pt = 3;					//摄像头点坐标
+	required	int32			offset	= 4;						//偏移量
+};
+
+//车道线 guide-combine
+message original_lane_t
+{
+	required    int32            lane_num = 1;                      //车道数
+    required    int32            lane_numL = 2;                     //左侧扩展车道数
+    required    int32            lane_numR = 3;                     //右侧扩展车道数
+    required    int32            lane_turn = 4;                     //车道实现的转向
+    required    int32            lanea = 5;                         //每1位表示该车道是否可排队通行
+    required    int64            laneo = 6;                         /* 一个路口所有车道概览，4位一组表示1个车道概览信息,
+                                                                       从高到低分别表示直行、右转、调头、左转 */
+};
+
+// guide-combine 分歧叶子
+message branch_leaf_t
+{
+	optional     road_level_t	level  = 1;			//道路等级
+    repeated	 road_attr_t	attr   = 2;			//道路属性
+    optional     road_width_t	width  = 3;			//宽度宽度
+	optional	 uint32			base_angle = 4;		//脱出角度(50米)
+	optional	 uint32			short_angle = 5;	//脱出短link角度(<=20米)
+	optional	 pass_attr_t	pass_attr = 6;		//通行属性
+};
+
+// guide-combine guide_relation
+message relation_link_t 
+{
+    optional     road_level_t	level  = 1;			//道路等级
+    repeated	 road_attr_t	attr   = 2;			//道路属性
+    optional     road_width_t	width  = 3;			//宽度宽度
+	optional	 pass_attr_t	pass_attr = 4;		//通行属性
+    optional	 slope_type_t	slope  = 5;			//上下坡
+	optional	 uint32			base_angle = 6;		//进入脱出的原始角度
+	optional	 uint32			short_angle = 7;	//短link角度(<=20米,任意两个原始脱出小于5°) 只有脱出relationlink才有此字段
+	optional     uint32			dummy_angle = 8;	//Cross Link角度(midlink的终点->relationlink起点的角度，同一点不需要计算)
+	optional	 bytes			name = 9;			//名称
+	optional	 uint32			dist = 10;			//进入Link到叶子Link的长度，不大于60米的
+	repeated     branch_leaf_t	brance_leaf	= 11;	//分歧叶子Link的集合
+};
+
+//guide-combine 进入-脱出类型
+enum ring_in_out_t 
+{
+    RING_TYPE_IN		= 1;   //进入环岛
+    RING_TYPE_OUT		= 2;   //驶出环岛
+    RING_TYPE_BOTH		= 3;   //双向通行
+};
+
+//guide-combine ring_leaf_t
+message ring_leaf_t 
+{
+    optional      ring_in_out_t		ring_type = 1;  //该叶子Link是指进环岛还是出环岛
+    optional      uint32			angle = 2;  	//进入脱出角度
+    optional      road_width_t		width = 3;		//宽度等级
+    optional      road_level_t		level = 4;		//道路等级
+    repeated      road_attr_t		attr = 5;		//道路属性
+    optional      bytes				name = 6;		//该叶子Link的名字
+};
+ 
+//guide-combine ringinfo
+message ring_info_t 
+{
+    optional	uint32					length = 1;  					  //环岛长度
+	optional	uint32					ring_out_idx = 2;				  //环岛实际脱出索引
+    repeated	ring_leaf_t             ring_leaf = 3;					  //该环岛关联的所有环岛叶子Link,
+																		  //从进入环岛的第一个环岛link开始计算
+};
+
+//guide-combine 鱼骨link
+message mid_link_t
+{
+	required	int32					road_length = 1;				  //道路长度
+	required	road_level_t			road_level = 2;					  //道路等级
+	repeated    road_attr_t     		road_attr = 3;                    //道路属性
+	required	bytes					road_name = 4;					  //道路名称
+	required	road_width_t			road_width = 5;					  //道路宽度
+	optional    toll_type_t				road_toll = 6;				  	  //收费模式
+	optional    int32					road_speed_limit = 7;			  //道路限速
+	required	pass_attr_t				road_pass_attr = 8;				  //道路通行类型
+	required    int32           		link_shape_idx = 9;				  //link终点在形状点中的索引
+	required    int32           		link_start_angle = 10;			  //link起点方向角度
+	required	int32					link_end_angle = 11;			  //link终点方向角度
+	optional	bytes					left_admin_name = 12;			  //link左侧行政区划
+	optional	bytes					right_admin_name = 13;			  //link右侧行政区划
+	optional	bytes					toll_gate_name = 14;			  //终点收费站名称
+	optional    slope_type_t    		slope_type = 15;                  //上下坡
+	optional    bytes           		ic_name = 16;                     //高速出入口名称(IC)
+    optional    bytes           		dr_name = 17;                     //方向名称(Dr)
+	optional	graph_t         		graph = 18;						  //路口放大图
+	repeated	trafficsign_type_t		trafficsign = 19;				  //交通标志
+	required	bool					connect_sapa = 20;				  //终点是否连接sapa
+	optional	bytes					sapa_name = 21;					  //服务区名字
+	optional	original_lane_t			lane = 22;						  //车道线
+	repeated	original_camera_t		camera = 23;					  //摄像头
+	optional    ring_info_t				ring = 24;						  //终点连接有环岛，当前link非环岛属性，下一link是环岛属性
+	repeated	relation_link_t			inlinks = 25;					  //进入links(不含midlink)
+	repeated	relation_link_t			outlinks = 26;					  //脱出links(非自身midlink,原路调头除外)
+	optional	uint32					idx = 27;						  //下一个midlink在脱出RelationLink中的索引
+	optional	bool					connect_light = 28;				  //终点是否连接交通信号灯
+	optional	bytes					relation_ic_name = 29;			  //非实际出入口名称总和, 逗号分隔
+	optional	bytes					relation_dr_name = 30;			  //非实际方向名称总和, 都号分隔
+};
+
+//guide-combine 鱼骨leg
+message mid_leg_t
+{
+	optional    int32            dist = 1;                        //leg的距离
+    optional    int32            duration = 2;                    //leg的时间
+    required    int32            start_location = 3;              //leg起点在形状点中的索引
+    required    int32            end_location = 4;                //leg终点在形状点中的索引
+	optional    Bound            box = 5;                         //leg的mbr
+    repeated    mid_link_t       mid_links = 6;                   //link
+	optional    end_direction_t  end_direction = 7;               //终点(途经点)在道路方位
+	optional	int32			 end_dist = 8;					  //终点(途经点)距离道路的距离
+};
+
+//guide-combine 路况数据 
+message traffic_t 
+{
+    optional      string		digest		= 1;				  //link摘要信息
+    optional      int32			boundary    = 2;				  //终点形状点索引
+    optional      int32			status		= 3;				  //路况状态
+};
+
+//guide-combine 鱼骨route
+message mid_route_t
+{
+	required    int32            dist = 1;                        //总距离(单位:米)
+    required    int32            duration = 2;                    //总时间(单位:秒）
+    optional    Bound            box = 3;                         //路线的mbr
+    required    bytes            shape = 4;                       //字节流形式存放的形状信息
+                                                                  //4个byte表示一个uint32的数字
+                                                                  //8个byte表示一个坐标点,先x,后y
+	repeated	mid_leg_t		 mid_legs = 5;					  //途经点分割的mid-route
+	optional    traffic_t        traffic = 6;   				  //路况信息
+};
+
+//guide-combine GE应答包
+message GuideDataRespanse
+{
+    optional	   int32		 error_no = 1 [default = 0];		 //错误代码，0-OK，other-各种错误
+	optional	   string        error_msg = 2 [default = ""];       //错误信息
+	optional       int32         total = 3 [default = 0];            //返回方案总数
+	repeated       mid_route_t   routes = 4;                         //具体方案guide_data
+};
+
+//GE应答包
+message GuideInfoResponse
+{
+    optional       int32         error_no = 1 [default = 0];         //错误代码，0-OK，other-各种错误
+    optional       string        error_msg = 2 [default = ""];       //错误信息
+    optional       int32         total = 3 [default = 0];            //返回方案总数
+    repeated       route_t       routes = 4;                         //具体方案list
+//  optional       TaxiInfo      taxiinfo = 5;                       //打车信息
+};
+
+// 出租车应答包
+message TaxiInfoResponse
+{
+    optional   int32   error_no = 1 [default = 0];         //错误代码，0-OK，other-各种错误
+    optional   string   error_msg = 2 [default = ""];      //错误信息
+    //optional   TaxiInfo taxiinfo = 3;                    //打车信息
+    required   int32 dist = 4 [default = 0];
+    required   int32 time = 5 [default = 0];
+};
+
+// linkinfo
+message LinkInfoResponse
+{
+    optional   int32               error_no = 1 [default = 0];         //错误代码，0-OK，other-各种错误
+    optional   string              error_msg = 2 [default = ""];       //错误信息
+    optional   linkinfo_t          linkinfo = 3;                       //拖拽信息
+}
+
+// 路线拖拽应答包
+message DragInfoResponse
+{
+    required   int32               error_no = 1 [default = 0];        //错误代码，0-OK，other-各种错误
+    required   string              error_msg = 2 [default = "OK"];    //错误信息
+    required   route_drag_t        route_drag = 3;                    //拖拽信息
+};
+
+service NaviGuidanceService
+{
+    rpc    GetGuideInfo(GuideInfoRequest) returns(GuideInfoResponse);
+    rpc    GetTaxiFee(GuideInfoRequest) returns(TaxiInfoResponse);
+    rpc    GetDragInfo(DragInfoRequest) returns(DragInfoResponse);
+	rpc    GetGuideData(GuideInfoRequest) returns(GuideDataRespanse);
+};
+
